@@ -1,0 +1,6 @@
+@ReferenceArchitecture.Api_HostAddress = http://localhost:5292
+
+GET {{ReferenceArchitecture.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
