@@ -87,6 +87,16 @@ main.tsx
 5. **No reflexive `types.ts` files.** Types live next to the code that uses them.
    Create `types.ts` only when types are shared across multiple files within a feature.
 
+### TypeScript Syntax Restrictions
+
+The project uses `erasableSyntaxOnly` mode. Do not use:
+- Constructor parameter properties: `constructor(public x: number)`
+- TypeScript-only `enum` declarations (use `const X = { ... } as const` instead)
+- `namespace` blocks
+
+Equivalent JavaScript-compatible patterns are required. This keeps the codebase
+compatible with type-erasure-only tooling and future Node native TypeScript support.
+
 ### Component Conventions
 
 - **TypeScript strict mode.** All components and hooks must be typed.
