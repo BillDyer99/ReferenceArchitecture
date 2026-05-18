@@ -29,10 +29,23 @@ over-engineered for a portfolio site so that real-world patterns can be demonstr
 - Squash merges preferred; keep main's history linear.
 - Branch names: `feature/<short-name>`, `fix/<short-name>`, `chore/<short-name>`.
 
-## Web Tier Deployment Auth
-The Azure Static Web Apps action does not yet support OIDC federated credentials (Azure/static-web-apps#1304). A long-lived deployment token is used instead, stored as a GitHub secret. The token is scoped to a single Static Web App and has no broader access. The API tier uses OIDC as the more secure pattern.
+## CI/CD Auth Patterns
+
+- **API deployment (App Service)**: OIDC federated credentials. No long-lived secrets.
+- **Web deployment (Static Web Apps)**: Auto-generated deployment token from Azure,
+  stored as `AZURE_STATIC_WEB_APPS_API_TOKEN_<SUFFIX>` GitHub secret. OIDC is not
+  yet supported by the Azure/static-web-apps-deploy action (see
+  github.com/Azure/static-web-apps/issues/1304). A long-lived deployment token is used instead, stored as a GitHub secret. The token is scoped to a single Static Web App and has no broader access. The API tier uses OIDC as the more secure pattern.
+- **Branch protection**: Required check is `CI Success` (the aggregator job),
+  which depends on all relevant tier jobs. This name is stable and controlled
+  within the workflow file.
 
 ## Frontend Conventions (`/web`)
+
+### File Extensions
+
+- `.ts` — TypeScript files containing no JSX (utilities, hooks, types, API clients).
+- `.tsx` — TypeScript files containing JSX (React components).
 
 ### Folder Structure
 

@@ -1,14 +1,14 @@
-import { ContactForm } from '@/features/contact'
-import {UserList} from "@/features/users";
+import { NotesList } from '@/features/notes'
 
 function App() {
-  return (
-      <div>
-        <h1>Reference Architecture</h1>
-        <UserList />
-        <ContactForm />
-      </div>
-  )
+    return (
+        <div>
+            <h1 style={{ textAlign: 'center', marginTop: '1rem' }}>
+                Reference Architecture
+            </h1>
+            <NotesList />
+        </div>
+    )
 }
 
 export default App
