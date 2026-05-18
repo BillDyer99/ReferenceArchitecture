@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using ReferenceArchitecture.Api.Data;
 using Scalar.AspNetCore;
 
+const string AllowedOriginsPolicy = "AllowedOrigins";
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -24,7 +26,24 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(AllowedOriginsPolicy, policy =>
+    {
+        var allowedOrigins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? Array.Empty<string>();
+
+        policy
+            .WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
+
 var app = builder.Build();
+
+app.UseCors(AllowedOriginsPolicy);
 
 // Configure the HTTP request pipeline.
 // if (app.Environment.IsDevelopment())
