@@ -42,6 +42,10 @@ jobs:
       needs.detect-changes.outputs.web == 'true' &&
       (github.event_name != 'pull_request' || github.event.action != 'closed')
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,23 +55,28 @@ jobs:
       - name: Build and Deploy to Static Web Apps
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: 'upload'
           app_location: '/web'
           api_location: ''
           output_location: 'dist'
+          azure_static_web_apps_api_token: ''
+        env:
+          IS_STATIC_EXPORT: false
 
   web-close-pr:
     name: Web — Close PR (cleanup preview)
     needs: detect-changes
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && needs.detect-changes.outputs.web == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Close PR cleanup
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          azure_static_web_apps_api_token: ''
           action: 'close'
 
   api-build-and-deploy:
