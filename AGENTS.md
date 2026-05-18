@@ -29,6 +29,9 @@ over-engineered for a portfolio site so that real-world patterns can be demonstr
 - Squash merges preferred; keep main's history linear.
 - Branch names: `feature/<short-name>`, `fix/<short-name>`, `chore/<short-name>`.
 
+## Web Tier Deployment Auth
+The Azure Static Web Apps action does not yet support OIDC federated credentials (Azure/static-web-apps#1304). A long-lived deployment token is used instead, stored as a GitHub secret. The token is scoped to a single Static Web App and has no broader access. The API tier uses OIDC as the more secure pattern.
+
 ## Frontend Conventions (`/web`)
 
 ### Folder Structure
