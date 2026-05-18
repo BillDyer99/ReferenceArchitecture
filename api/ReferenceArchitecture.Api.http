@@ -4,3 +4,27 @@ GET {{ReferenceArchitecture.Api_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+@host = http://localhost:5292
+
+### Get all notes
+GET {{host}}/api/notes
+Accept: application/json
+
+###
+
+### Create a note
+POST {{host}}/api/notes
+Content-Type: application/json
+
+{
+  "title": "First note",
+  "body": "Hello from the API"
+}
+
+###
+
+### Get a specific note
+GET {{host}}/api/notes/1
+Accept: application/json
+
