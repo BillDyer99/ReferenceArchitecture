@@ -54,6 +54,17 @@ Microsoft.ApplicationInsights pinned to 2.x; v3.x is incompatible with the
 Serilog sink (uses removed TelemetryConfiguration.Active API). Revisit when
 sink supports v3.
 
+Log level
+- Information in production
+- Debug in development
+
+Sampling
+Currently none - send all telemetry.  If volume increases, then configure adaptive sampling in production to control cost.
+
+Microsoft.ApplicationInsights pinned to 2.x; v3.x is incompatible with the
+Serilog sink (uses removed TelemetryConfiguration.Active API). Revisit when
+sink supports v3.
+
 Telemetry tables:
 - requests — HTTP request telemetry
 - dependencies — outbound calls (SQL, HTTP, Key Vault)
@@ -163,6 +174,9 @@ memoization, the code is probably structured wrong.
 
 (To be filled in when the API has more substance. Placeholder for now.)
 
+Direct API calls (CORS-based)
+React calls https://billdyer99-api-centralus-01.azurewebsites.net/api/notes directly. The API has CORS configured to allow the SWA's domain. Two different origins, browser handles the CORS preflight.
+
 - .NET 10, controller-based Web API.
 - EF Core with SQL Server provider against Azure SQL Database.
 - `IDbContextFactory<T>` pattern for context creation.
@@ -186,3 +200,19 @@ memoization, the code is probably structured wrong.
   for the public API of a feature.
 - Don't introduce new top-level folders in `web/src/` without updating this file.
 - Don't suppress ESLint or TypeScript errors with comments. Fix the underlying issue.
+
+## Known Environment Issues
+
+### PowerShell File Encoding
+
+PowerShell's `>` redirect operator and `Set-Content` cmdlet write files as
+UTF-16 LE with BOM by default. This is incompatible with Vite's `.env` parser,
+Node's config readers, and many other tools.
+
+When creating config files (.env*, .json, .yaml) from PowerShell, use one of:
+- `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))`
+- VS Code or Rider's editor (creates UTF-8 without BOM by default)
+- A code editor, not `echo > file`
+
+PowerShell 7+ defaults to UTF-8 without BOM, but PowerShell 5.x (the default
+"Windows PowerShell" on Windows 10/11) does not.
