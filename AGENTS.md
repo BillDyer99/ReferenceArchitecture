@@ -40,6 +40,28 @@ over-engineered for a portfolio site so that real-world patterns can be demonstr
   which depends on all relevant tier jobs. This name is stable and controlled
   within the workflow file.
 
+## Observability
+
+Application Insights is provisioned with workspace-based linkage to Log Analytics.
+Connection string in Key Vault as AppInsightsConnectionString; referenced from App
+Service as APPLICATIONINSIGHTS_CONNECTION_STRING.
+
+Serilog is the logging provider, with:
+- Console sink for local development (pretty output)
+- Application Insights sink via Serilog.Sinks.ApplicationInsights 5.0.1
+
+Microsoft.ApplicationInsights pinned to 2.x; v3.x is incompatible with the
+Serilog sink (uses removed TelemetryConfiguration.Active API). Revisit when
+sink supports v3.
+
+Telemetry tables:
+- requests — HTTP request telemetry
+- dependencies — outbound calls (SQL, HTTP, Key Vault)
+- traces — Serilog log entries
+- exceptions — unhandled exceptions
+
+All linked via operation_Id for transaction tracing.
+
 ## Frontend Conventions (`/web`)
 
 ### File Extensions
