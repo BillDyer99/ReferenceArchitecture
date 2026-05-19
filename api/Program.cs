@@ -83,6 +83,19 @@ try
 
     var app = builder.Build();
 
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var pending = db.Database.GetPendingMigrations().ToList();
+        if (pending.Count > 0)
+        {
+            Log.Fatal("Database schema is out of date. {Count} pending migration(s): {Migrations}. " +
+                      "Run the migrate workflow before deploying.",
+                pending.Count, pending);
+            return 1;
+        }
+    }
+
     // var telemetryConfig = app.Services.GetRequiredService<Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration>();
     // Log.Information("App Insights connection string in use: {ConnectionString}", 
     //     string.IsNullOrEmpty(telemetryConfig.ConnectionString) 

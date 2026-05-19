@@ -1,17 +1,13 @@
-﻿name: CI
+name: CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
+      - development
       - main
-  workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: read
   pull-requests: write
 
@@ -19,6 +15,7 @@ jobs:
   detect-changes:
     name: Detect changes
     runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
     outputs:
       web: ${{ steps.filter.outputs.web }}
       api: ${{ steps.filter.outputs.api }}
@@ -30,133 +27,105 @@ jobs:
           filters: |
             web:
               - 'web/**'
-              - '.github/workflows/ci.yml'
             api:
               - 'api/**'
-              - '.github/workflows/ci.yml'
 
-  web-build-and-deploy:
-    name: Web — Build and Deploy
+  # PRs targeting development get a live preview on the dev SWA.
+  # PRs targeting main get a build-only validation (no deploy).
+  web-build-and-preview:
+    name: Web — Build and Preview (dev PR)
     needs: detect-changes
     if: |
       needs.detect-changes.outputs.web == 'true' &&
-      (github.event_name != 'pull_request' || github.event.action != 'closed')
+      github.base_ref == 'development' &&
+      github.event.action != 'closed'
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
-  
-      - name: Setup Node
-        uses: actions/setup-node@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
-  
+
       - name: Install dependencies
         working-directory: ./web
         run: npm ci
-  
+
       - name: Build
         working-directory: ./web
         env:
-          VITE_API_BASE_URL: https://billdyer99-api-centralus-01.azurewebsites.net
+          VITE_API_BASE_URL: https://billdyer99-api-centralus-01-dev.azurewebsites.net
         run: npm run build
-  
-      - name: Deploy to Static Web Apps
+
+      - name: Deploy PR preview to dev SWA
         uses: Azure/static-web-apps-deploy@v1
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_GRASS_0F1CFB90F }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: 'upload'
           app_location: '/web/dist'
           api_location: ''
           output_location: ''
           skip_app_build: true
-        
-  web-close-pr:
-    name: Web — Close PR (cleanup preview)
-    needs: detect-changes
-    if: github.event_name == 'pull_request' && github.event.action == 'closed' && needs.detect-changes.outputs.web == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Close PR cleanup
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_GRASS_0F1CFB90F }}
-          action: 'close'
 
-  api-build-and-deploy:
-    name: API — Build and Deploy
+  web-build-validate:
+    name: Web — Build (main PR)
     needs: detect-changes
     if: |
-      needs.detect-changes.outputs.api == 'true' &&
-      github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore dependencies
-        run: dotnet restore
-        working-directory: ./api
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-        working-directory: ./api
-
-      - name: Test
-        run: dotnet test --configuration Release --no-build --verbosity normal
-        working-directory: ./api
-        if: hashFiles('api/**/*Tests.csproj') != ''
-
-      - name: Publish
-        run: dotnet publish --configuration Release --no-build --output ./publish
-        working-directory: ./api
-
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy to App Service
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: billdyer99-api-centralus-01
-          package: ./api/publish
-
-  api-build-only:
-    name: API — Build (PR validation)
-    needs: detect-changes
-    if: |
-      needs.detect-changes.outputs.api == 'true' &&
-      github.event_name == 'pull_request' &&
+      needs.detect-changes.outputs.web == 'true' &&
+      github.base_ref == 'main' &&
       github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./web
+        run: npm ci
+
+      - name: Build
+        working-directory: ./web
+        env:
+          VITE_API_BASE_URL: https://billdyer99-api-centralus-01.azurewebsites.net
+        run: npm run build
+
+  web-close-pr:
+    name: Web — Close PR preview
+    if: github.event.action == 'closed' && github.base_ref == 'development'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close PR preview
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: 'close'
+
+  api-build:
+    name: API — Build
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.api == 'true' &&
+      github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore dependencies
+      - name: Restore
         run: dotnet restore
         working-directory: ./api
 
@@ -171,27 +140,24 @@ jobs:
 
   ci-success:
     name: CI Success
-    needs: [detect-changes, web-build-and-deploy, web-close-pr, api-build-and-deploy, api-build-only]
+    needs: [detect-changes, web-build-and-preview, web-build-validate, web-close-pr, api-build]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Verify all required jobs succeeded
         run: |
-          # Collect results of all needed jobs
           declare -A results
           results[detect-changes]="${{ needs.detect-changes.result }}"
-          results[web-build-and-deploy]="${{ needs.web-build-and-deploy.result }}"
+          results[web-build-and-preview]="${{ needs.web-build-and-preview.result }}"
+          results[web-build-validate]="${{ needs.web-build-validate.result }}"
           results[web-close-pr]="${{ needs.web-close-pr.result }}"
-          results[api-build-and-deploy]="${{ needs.api-build-and-deploy.result }}"
-          results[api-build-only]="${{ needs.api-build-only.result }}"
+          results[api-build]="${{ needs.api-build.result }}"
 
           echo "Job results:"
           for job in "${!results[@]}"; do
             echo "  $job: ${results[$job]}"
           done
 
-          # Acceptable conclusions: success, skipped
-          # Unacceptable: failure, cancelled
           for job in "${!results[@]}"; do
             result="${results[$job]}"
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
