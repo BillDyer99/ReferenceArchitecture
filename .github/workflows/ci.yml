@@ -59,7 +59,7 @@ jobs:
       - name: Build
         working-directory: ./web
         env:
-          VITE_API_BASE_URL: https://billdyer99-api-centralus-01-dev.azurewebsites.net
+          VITE_API_BASE_URL: https://app-ref-arch-api-dev.azurewebsites.net
         run: npm run build
 
       - name: Deploy PR preview to dev SWA
@@ -97,7 +97,7 @@ jobs:
       - name: Build
         working-directory: ./web
         env:
-          VITE_API_BASE_URL: https://billdyer99-api-centralus-01.azurewebsites.net
+          VITE_API_BASE_URL: https://app-ref-arch-api-prd.azurewebsites.net
         run: npm run build
 
   web-close-pr:

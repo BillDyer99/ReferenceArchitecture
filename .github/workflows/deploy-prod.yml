@@ -80,7 +80,7 @@ jobs:
       - name: Deploy API to App Service
         uses: azure/webapps-deploy@v3
         with:
-          app-name: billdyer99-api-centralus-01
+          app-name: app-ref-arch-api-prd
           package: api-${{ needs.find-version.outputs.version }}.zip
 
       - name: Deploy web to SWA
@@ -104,7 +104,7 @@ jobs:
         run: |
           for i in {1..12}; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              https://billdyer99-api-centralus-01.azurewebsites.net/health)
+              https://app-ref-arch-api-prd.azurewebsites.net/health)
             if [ "$STATUS" = "200" ]; then
               echo "Health check passed (attempt $i)"
               exit 0

@@ -89,7 +89,7 @@ jobs:
       - name: Build
         working-directory: ./web
         env:
-          VITE_API_BASE_URL: https://billdyer99-api-centralus-01-dev.azurewebsites.net
+          VITE_API_BASE_URL: https://app-ref-arch-api-dev.azurewebsites.net
         run: npm run build
 
       - name: Zip artifact
@@ -149,7 +149,7 @@ jobs:
       - name: Deploy to App Service
         uses: azure/webapps-deploy@v3
         with:
-          app-name: billdyer99-api-centralus-01-dev
+          app-name: app-ref-arch-api-dev
           package: api-${{ needs.compute-version.outputs.version }}.zip
 
   deploy-web:
@@ -189,7 +189,7 @@ jobs:
         run: |
           for i in {1..12}; do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              https://billdyer99-api-centralus-01-dev.azurewebsites.net/health)
+              https://app-ref-arch-api-dev.azurewebsites.net/health)
             if [ "$STATUS" = "200" ]; then
               echo "Health check passed (attempt $i)"
               exit 0

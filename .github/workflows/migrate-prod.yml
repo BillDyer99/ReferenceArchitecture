@@ -40,7 +40,7 @@ jobs:
       - name: Get connection string from Key Vault
         run: |
           CONN_STR=$(az keyvault secret show \
-            --vault-name kv-refarch-bd99 \
+            --vault-name kv-ref-arch-prd \
             --name SqlConnectionString \
             --query value -o tsv)
           echo "::add-mask::$CONN_STR"
