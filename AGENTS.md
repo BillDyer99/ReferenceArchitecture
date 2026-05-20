@@ -190,6 +190,32 @@ React calls https://billdyer99-api-centralus-01.azurewebsites.net/api/notes dire
 - OIDC federated auth for all GitHub Actions → Azure deployments. No long-lived
   secrets in workflow files.
 
+### Deployment Strategy — Zip Deploy vs Containers
+
+The CI/CD pipeline deploys the API as a zip artifact (via `azure/webapps-deploy`)
+rather than a Docker container image. This was a deliberate cost decision: container
+hosting on Azure App Service requires a paid tier (Basic or above), whereas zip
+deploy works on the free F1 tier.
+
+**Current status:**
+- Dev App Service (`asp-reference-architecture-dev`) has been upgraded to **B1**
+  (~$13/month) due to F1 CPU quota exhaustion. The cost justification for zip
+  deploy no longer applies in the dev environment.
+- Prod App Service is still on a tier where zip deploy is cost-effective. There
+  are no current plans to upgrade prod, but this is expected to happen as the
+  architecture evolves.
+
+**Migration trigger:** Once the prod App Service is upgraded to a tier that
+includes container support (Basic B1 or above), both environments should be
+migrated to container-based deployments. At that point:
+1. Add a `Dockerfile` to `/api`
+2. Push images to Azure Container Registry (or GitHub Container Registry)
+3. Replace `azure/webapps-deploy` zip steps with image-based deploys
+4. Update the `build-api` workflow job to build and push the image instead of
+   uploading a zip artifact to the GitHub release
+
+Until then, keep zip-based deployment and do not introduce Docker infrastructure.
+
 ## What NOT to do
 
 - Don't add Redux without discussing first.
