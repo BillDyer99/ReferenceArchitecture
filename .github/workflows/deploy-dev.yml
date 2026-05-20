@@ -1,0 +1,201 @@
+name: Deploy — Dev
+
+on:
+  push:
+    branches:
+      - development
+
+permissions:
+  contents: write   # create GitHub releases
+  id-token: write   # OIDC for Azure
+
+jobs:
+  compute-version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        run: |
+          MAJOR=$(jq -r '.major' api/version.json)
+          MINOR=$(jq -r '.minor' api/version.json)
+          PATCH=$(git rev-list --count HEAD)
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "Computed version: ${VERSION}"
+
+  build-api:
+    name: Build API
+    needs: compute-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+        working-directory: ./api
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+        working-directory: ./api
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal
+        working-directory: ./api
+        if: hashFiles('api/**/*Tests.csproj') != ''
+
+      - name: Publish
+        run: dotnet publish --configuration Release --no-build --output ./publish
+        working-directory: ./api
+
+      - name: Zip artifact
+        run: cd publish && zip -r ../api-${{ needs.compute-version.outputs.version }}.zip .
+        working-directory: ./api
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-artifact
+          path: api/api-${{ needs.compute-version.outputs.version }}.zip
+
+  build-web:
+    name: Build Web
+    needs: compute-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./web
+        run: npm ci
+
+      - name: Build
+        working-directory: ./web
+        env:
+          VITE_API_BASE_URL: https://billdyer99-api-centralus-01-dev.azurewebsites.net
+        run: npm run build
+
+      - name: Zip artifact
+        run: cd dist && zip -r ../web-${{ needs.compute-version.outputs.version }}.zip .
+        working-directory: ./web
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-artifact
+          path: web/web-${{ needs.compute-version.outputs.version }}.zip
+
+  release:
+    name: Create GitHub release
+    needs: [compute-version, build-api, build-web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: api-artifact
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-artifact
+
+      - name: Create pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create ${{ needs.compute-version.outputs.tag }} \
+            --prerelease \
+            --title "v${{ needs.compute-version.outputs.version }}" \
+            --notes "Built from development @ ${{ github.sha }}" \
+            api-${{ needs.compute-version.outputs.version }}.zip \
+            web-${{ needs.compute-version.outputs.version }}.zip
+
+  deploy-api:
+    name: Deploy API → Dev
+    needs: [compute-version, release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download API artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download ${{ needs.compute-version.outputs.tag }} \
+            --pattern "api-*.zip"
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: billdyer99-api-centralus-01-dev
+          package: api-${{ needs.compute-version.outputs.version }}.zip
+
+  deploy-web:
+    name: Deploy Web → Dev
+    needs: [compute-version, release]
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download web artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release download ${{ needs.compute-version.outputs.tag }} \
+            --pattern "web-*.zip"
+          mkdir -p web/dist
+          unzip web-${{ needs.compute-version.outputs.version }}.zip -d web/dist
+
+      - name: Deploy to dev SWA
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: 'upload'
+          app_location: '/web/dist'
+          api_location: ''
+          output_location: ''
+          skip_app_build: true
+
+  health-check:
+    name: Health check
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll health endpoint
+        run: |
+          for i in {1..12}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              https://billdyer99-api-centralus-01-dev.azurewebsites.net/health)
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS — waiting 10s"
+            sleep 10
+          done
+          echo "::error::Health check failed after 2 minutes. If schema is out of date, run the migrate-dev workflow then re-run this deployment."
+          exit 1

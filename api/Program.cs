@@ -50,7 +50,8 @@ try
     
     builder.Services.AddControllers();
     builder.Services.AddOpenApi();
-    builder.Services.AddHealthChecks();
+    builder.Services.AddHealthChecks()
+        .AddCheck<ReferenceArchitecture.Api.Health.PendingMigrationsHealthCheck>("pending-migrations");
     
     const string AllowedOriginsPolicy = "AllowedOrigins";
     builder.Services.AddCors(options =>
